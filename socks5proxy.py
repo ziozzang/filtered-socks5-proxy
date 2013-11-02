@@ -1,4 +1,6 @@
 #!/usr/bin/python
+# -*- coding:utf-8 -*-
+#
 # Socks5 Proxy Service with Contents Filtering Sample.
 # This sample is for test purpose.
 # - modification by Jioh L. Jung(ziozzang@gmail.com)
@@ -19,23 +21,53 @@ class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer): p
 class Socks5Server(SocketServer.StreamRequestHandler):
     def handle_tcp(self, sock, remote):
         fdset = [sock, remote]
+        self.marked = False
+        self.filters = False
+        self.filter_passthru = False
+        self.reqtype = none
+        self.cbuf = None
         while True:
             r, w, e = select.select(fdset, [], [])
             if sock in r:
-                if remote.send(sock.recv(4096)) <= 0: break
+                buf = sock.recv(4096)
+                if not self.marked:
+                   # build Packet Filter Marking
+                   self.marked = True
+                   s = buf.split("\n", 1)
+                   if len(s) == 2:
+                      q = s[0].split()
+                      if q[0].lower() == "get" or q[0].lower() == "post":
+                          if q[1].find("?") != -1:
+                              self.base_uri = q[1].split("?")[0]
+                          else:
+                              self.base_uri = q[1]
+                          self.uri = q[1]
+                          self.reqtype = "http"
+                          self.url = "http://" + self.addr + "/" + self.uri
+                          self.base_url = "http://" + self.addr + "/" + self.base_uri
+                          print self.url
+                          print self.base_url
+                   #debug
+                   print buf
+                   # Do Filtering Set
+                if remote.send(buf) <= 0: break
             if remote in r:
                 buf = remote.recv(4096)
-                if not buf: break
-                # Check Some...
-                if buf.find("SomeKeywords") != -1:
-                   l = len(buf)
-                   # Replace Cotents
-                   buf = re.sub(r"<TagName>[^<]*</TagName>", "<TagName>0</TagName>", buf)
-                   # Build Padding
-                   s = l - len(buf)
-                   p = buf.find("<SomeTagWithSafeMark>")
-                   buf = buf[:p] + " " * s + buf[p:]
-                if sock.send(buf) <= 0: break
+                if self.filters and not self.filter_passthru:
+                   # Exist Filter, but not passthru
+                   if not buf:
+                      if sock.send(self.cbuf) <= 0: break
+                   if self.cbuf is None:
+                      self.cbuf = buf
+                   else:
+                      self.cbuf = self.cbuf + buf
+                elif self.filters and self.filter_passthru:
+                   if not buf: break
+                   #do Filtering
+                   if sock.send(buf) <= 0: break
+                else:
+                   if not buf: break
+                   if sock.send(buf) <= 0: break
     def handle(self):
         try:
             print 'socks connection from ', self.client_address
@@ -55,6 +87,8 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             reply = b"\x05\x00\x00\x01"
             try:
                 if mode == 1:  # 1. Tcp connect
+                    self.addr = addr
+                    self.port = port[0]
                     remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     remote.connect((addr, port[0]))
                     print 'Tcp connect to', addr, port[0]
