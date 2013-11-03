@@ -43,7 +43,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                           else:
                               self.base_uri = q[1]
                           self.uri = q[1]
-                          if (len(self.uri) > 4) and (self.uri[-4:].lower() == ".png" or elf.uri[-4:].lower() == ".gif" or elf.uri[-4:].lower() == ".jpg"):
+                          if (len(self.uri) > 4) and (self.uri[-4:].lower() == ".png" or self.uri[-4:].lower() == ".gif" or elf.uri[-4:].lower() == ".jpg"):
                               pass
                           else:
                               self.reqtype = "http"
