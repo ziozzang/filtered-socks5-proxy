@@ -16,6 +16,7 @@
 
 import socket, os, sys, select, SocketServer, struct, time
 import re
+import localfilters
 
 class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer): pass
 class Socks5Server(SocketServer.StreamRequestHandler):
@@ -24,7 +25,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
         self.marked = False
         self.filters = False
         self.filter_passthru = False
-        self.reqtype = none
+        self.reqtype = None
         self.cbuf = None
         while True:
             r, w, e = select.select(fdset, [], [])
@@ -42,20 +43,39 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                           else:
                               self.base_uri = q[1]
                           self.uri = q[1]
-                          self.reqtype = "http"
-                          self.url = "http://" + self.addr + "/" + self.uri
-                          self.base_url = "http://" + self.addr + "/" + self.base_uri
-                          print self.url
-                          print self.base_url
-                   #debug
-                   print buf
-                   # Do Filtering Set
+                          if (len(self.uri) > 4) and (self.uri[-4:].lower() == ".png" or elf.uri[-4:].lower() == ".gif" or elf.uri[-4:].lower() == ".jpg"):
+                              pass
+                          else:
+                              self.reqtype = "http"
+                              self.url = "http://" + self.addr + self.uri
+                              self.base_url = "http://" + self.addr + self.base_uri
+                              #print self.url
+                              #print self.base_url
+                              #debug
+                              buf = buf.replace("Accept-Encoding: gzip, deflate", "Accept-Encoding: deflate")
+                              #print buf
+                              if localfilters.filter_url_pass.has_key(self.base_url):
+                                 self.filters = True
+                                 self.filter_passthru = True
+                                 self.ffunc = localfilters.filter_url_pass[self.base_url]
+                              elif localfilters.filter_url_all.has_key(self.base_url):
+                                 self.filters = True
+                                 self.ffunc = localfilters.filter_url_all[self.base_url]
+                              elif localfilters.filter_host_pass.has_key(self.addr):
+                                 self.filters = True
+                                 self.filter_passthru = True
+                                 self.ffunc = localfilters.filter_host_pass[self.addr]
+                              elif localfilters.filter_host_all.has_key(self.addr):
+                                 self.filters = True
+                                 self.ffunc = localfilters.filter_host_all[self.addr]
+                              # Do Filtering Set
                 if remote.send(buf) <= 0: break
             if remote in r:
                 buf = remote.recv(4096)
                 if self.filters and not self.filter_passthru:
                    # Exist Filter, but not passthru
                    if not buf:
+                      self.cbuf = self.ffunc(self.cbuf)
                       if sock.send(self.cbuf) <= 0: break
                    if self.cbuf is None:
                       self.cbuf = buf
@@ -64,6 +84,8 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 elif self.filters and self.filter_passthru:
                    if not buf: break
                    #do Filtering
+                   buf = self.ffunc(buf)
+                   #print buf
                    if sock.send(buf) <= 0: break
                 else:
                    if not buf: break
