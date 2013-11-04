@@ -34,6 +34,7 @@ even if you don't jailbreak, you can cheat it!. Yeah!
 Disclaimer
 ==========
 
+* code by Jioh L. Jung (ziozzang@gmail.com)
 * basic proxy server code from https://github.com/pentie/geventSocks5
 * Code is not fully tested. so, USE AT YOUR OWN RISK!!
 
