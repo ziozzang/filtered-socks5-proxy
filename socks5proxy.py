@@ -3,7 +3,7 @@
 #
 # Socks5 Proxy Service with Contents Filtering Sample.
 # This sample is for test purpose.
-# - modification by Jioh L. Jung(ziozzang@gmail.com)
+# - code modification by Jioh L. Jung(ziozzang@gmail.com)
 #
 # Threaded Socks5 Server in Python
 #
@@ -27,6 +27,8 @@ class Socks5Server(SocketServer.StreamRequestHandler):
         self.filter_passthru = False
         self.reqtype = None
         self.cbuf = None
+        
+        # Basic Loop for contents passing.
         while True:
             r, w, e = select.select(fdset, [], [])
             if sock in r:
@@ -38,22 +40,27 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                    if len(s) == 2:
                       q = s[0].split()
                       if q[0].lower() == "get" or q[0].lower() == "post":
+                          # split Query. (Extracting.)
                           if q[1].find("?") != -1:
                               self.base_uri = q[1].split("?")[0]
                           else:
                               self.base_uri = q[1]
                           self.uri = q[1]
+                          # Don't filter image file.
                           if (len(self.uri) > 4) and (self.uri[-4:].lower() == ".png" or self.uri[-4:].lower() == ".gif" or slf.uri[-4:].lower() == ".jpg"):
                               pass
                           else:
+                              # Do some filters.
                               self.reqtype = "http"
                               self.url = "http://" + self.addr + self.uri
                               self.base_url = "http://" + self.addr + self.base_uri
+                              
+                              # For debugging
                               #print self.url
                               #print self.base_url
-                              #debug
+                              # if gziped contents are not easy as plain texted one, so replace to deflate
                               buf = buf.replace("Accept-Encoding: gzip, deflate", "Accept-Encoding: deflate")
-                              #print buf
+                              # Do some filtering.
                               if localfilters.filter_url_pass.has_key(self.base_url):
                                  self.filters = True
                                  self.filter_passthru = True
@@ -68,12 +75,13 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                               elif localfilters.filter_host_all.has_key(self.addr):
                                  self.filters = True
                                  self.ffunc = localfilters.filter_host_all[self.addr]
-                              # Do Filtering Set
                 if remote.send(buf) <= 0: break
+            
             if remote in r:
                 buf = remote.recv(4096)
                 if self.filters and not self.filter_passthru:
                    # Exist Filter, but not passthru
+                   # Fetch Whole Contents, after that, doing Filtering Job.
                    if not buf:
                       self.cbuf = self.ffunc(self.cbuf)
                       if sock.send(self.cbuf) <= 0: break
@@ -83,11 +91,11 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                       self.cbuf = self.cbuf + buf
                 elif self.filters and self.filter_passthru:
                    if not buf: break
-                   #do Filtering
+                   # do Filtering everytime
                    buf = self.ffunc(buf)
-                   #print buf
                    if sock.send(buf) <= 0: break
                 else:
+                    # no filtering
                    if not buf: break
                    if sock.send(buf) <= 0: break
     def handle(self):
