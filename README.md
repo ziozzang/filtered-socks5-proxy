@@ -42,3 +42,9 @@ License
 =======
 
 * This code is under GPL v2.
+
+TO-DO
+=====
+
+* Refctoring Code.
+* Authenticate support : http://rootzone.net/socks-5-protocol-2
