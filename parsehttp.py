@@ -38,8 +38,7 @@ def getheaderslist(body):
 def getheaderpartonly(body, sp="\r\n"):
   s = len(sp)
   pos = body.find(sp*2)
-  hdr = body[:pos]
-  return hdr
+  return body[:pos]
 
 # Sample code for fixing stream data.
 # - for match Content length, Resize of 'Content-Length' Header value.

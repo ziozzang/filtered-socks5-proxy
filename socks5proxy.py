@@ -27,77 +27,74 @@ class Socks5Server(SocketServer.StreamRequestHandler):
         self.filter_passthru = False
         self.reqtype = None
         self.cbuf = None
-        
+
         # Basic Loop for contents passing.
         while True:
             r, w, e = select.select(fdset, [], [])
             if sock in r:
                 buf = sock.recv(4096)
                 if not self.marked:
-                   # build Packet Filter Marking
-                   self.marked = True
-                   s = buf.split("\n", 1)
-                   if len(s) == 2:
-                      q = s[0].split()
-                      if q[0].lower() == "get" or q[0].lower() == "post":
-                          # split Query. (Extracting.)
-                          if q[1].find("?") != -1:
-                              self.base_uri = q[1].split("?")[0]
-                          else:
-                              self.base_uri = q[1]
-                          self.uri = q[1]
-                          # Don't filter image file.
-                          if (len(self.uri) > 4) and (self.uri[-4:].lower() == ".png" or self.uri[-4:].lower() == ".gif" or slf.uri[-4:].lower() == ".jpg"):
-                              pass
-                          else:
-                              # Do some filters.
-                              self.reqtype = "http"
-                              self.url = "http://" + self.addr + self.uri
-                              self.base_url = "http://" + self.addr + self.base_uri
-                              
-                              # For debugging
-                              #print self.url
-                              #print self.base_url
-                              # if gziped contents are not easy as plain texted one, so replace to deflate
-                              buf = buf.replace("Accept-Encoding: gzip, deflate", "Accept-Encoding: deflate")
-                              # Do some filtering.
-                              if localfilters.filter_url_pass.has_key(self.base_url):
-                                 self.filters = True
-                                 self.filter_passthru = True
-                                 self.ffunc = localfilters.filter_url_pass[self.base_url]
-                              elif localfilters.filter_url_all.has_key(self.base_url):
-                                 self.filters = True
-                                 self.ffunc = localfilters.filter_url_all[self.base_url]
-                              elif localfilters.filter_host_pass.has_key(self.addr):
-                                 self.filters = True
-                                 self.filter_passthru = True
-                                 self.ffunc = localfilters.filter_host_pass[self.addr]
-                              elif localfilters.filter_host_all.has_key(self.addr):
-                                 self.filters = True
-                                 self.ffunc = localfilters.filter_host_all[self.addr]
+                    # build Packet Filter Marking
+                    self.marked = True
+                    s = buf.split("\n", 1)
+                    if len(s) == 2:
+                        q = s[0].split()
+                        if q[0].lower() in ["get", "post"]:
+                                                  # split Query. (Extracting.)
+                            self.base_uri = q[1].split("?")[0] if q[1].find("?") != -1 else q[1]
+                            self.uri = q[1]
+                                                  # Don't filter image file.
+                            if (
+                                len(self.uri) <= 4
+                                or self.uri[-4:].lower() != ".png"
+                                and self.uri[-4:].lower() != ".gif"
+                                and slf.uri[-4:].lower() != ".jpg"
+                            ):
+                                # Do some filters.
+                                self.reqtype = "http"
+                                self.url = "http://" + self.addr + self.uri
+                                self.base_url = "http://" + self.addr + self.base_uri
+
+                                # For debugging
+                                #print self.url
+                                #print self.base_url
+                                # if gziped contents are not easy as plain texted one, so replace to deflate
+                                buf = buf.replace("Accept-Encoding: gzip, deflate", "Accept-Encoding: deflate")
+                                # Do some filtering.
+                                if localfilters.filter_url_pass.has_key(self.base_url):
+                                   self.filters = True
+                                   self.filter_passthru = True
+                                   self.ffunc = localfilters.filter_url_pass[self.base_url]
+                                elif localfilters.filter_url_all.has_key(self.base_url):
+                                   self.filters = True
+                                   self.ffunc = localfilters.filter_url_all[self.base_url]
+                                elif localfilters.filter_host_pass.has_key(self.addr):
+                                   self.filters = True
+                                   self.filter_passthru = True
+                                   self.ffunc = localfilters.filter_host_pass[self.addr]
+                                elif localfilters.filter_host_all.has_key(self.addr):
+                                   self.filters = True
+                                   self.ffunc = localfilters.filter_host_all[self.addr]
                 if remote.send(buf) <= 0: break
-            
+
             if remote in r:
                 buf = remote.recv(4096)
                 if self.filters and not self.filter_passthru:
-                   # Exist Filter, but not passthru
-                   # Fetch Whole Contents, after that, doing Filtering Job.
-                   if not buf:
-                      self.cbuf = self.ffunc(self.cbuf)
-                      if sock.send(self.cbuf) <= 0: break
-                   if self.cbuf is None:
-                      self.cbuf = buf
-                   else:
-                      self.cbuf = self.cbuf + buf
-                elif self.filters and self.filter_passthru:
-                   if not buf: break
-                   # do Filtering everytime
-                   buf = self.ffunc(buf)
-                   if sock.send(buf) <= 0: break
+                    # Exist Filter, but not passthru
+                    # Fetch Whole Contents, after that, doing Filtering Job.
+                    if not buf:
+                       self.cbuf = self.ffunc(self.cbuf)
+                       if sock.send(self.cbuf) <= 0: break
+                    self.cbuf = buf if self.cbuf is None else self.cbuf + buf
+                elif self.filters:
+                    if not buf: break
+                    # do Filtering everytime
+                    buf = self.ffunc(buf)
+                    if sock.send(buf) <= 0: break
                 else:
-                    # no filtering
-                   if not buf: break
-                   if sock.send(buf) <= 0: break
+                     # no filtering
+                    if not buf: break
+                    if sock.send(buf) <= 0: break
     def handle(self):
         try:
             print 'socks connection from ', self.client_address
